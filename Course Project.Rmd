@@ -1,0 +1,79 @@
+---
+title: "Practical Machine Leraning Course Project"
+author: "Andy Ng"
+date: "2017-07-20"
+output: html_document
+---
+
+```{r setup, include=FALSE, cache = TRUE}
+knitr::opts_chunk$set(echo = TRUE)
+library(caret)
+```
+
+##Introduction
+  It is now possible to collect large amount of activity data using sports devices. Usually people focus on how much they do the activities instead of how well they do them. Because of that, 6 volunteers had been invited to perform test on weightlifting exercise with sports wear devices on. The data collected will generate 5 different results that classify as classes. Off all of them, only class A is considered as correct exercise. We will perform test on the collected data to see how well the data predict.
+  
+##Data Loading
+First lets load the data into R and them examine it
+
+```{r}
+  training <- read.csv("pml-training.csv", stringsAsFactors = FALSE)
+  testing <- read.csv("pml-testing.csv", stringsAsFactors = FALSE)
+  head(training)
+```
+
+##Data Preprocessing and cleaning
+From the data, it is very obvious that off the 160 predictors, many of them have N/A values which are useless for us. Lets eleminate them. Also, we will perform preprocessing on the data which will remove meaningless data and will fill the NA values with the average of other data.
+
+```{r}
+  NAs <- colSums(is.na(training))
+  training <- training[,which(NAs == 0)]
+  testing <- testing[,which(NAs == 0)]
+  ZeroIndex <- nearZeroVar(training)
+  testing <- testing[,-ZeroIndex]
+  training <- training[, -ZeroIndex]
+  nuIndex <- which(lapply(training, class) %in% "numeric")
+  prepro <- preProcess(training[,nuIndex], method = "knnImpute")
+  trainingAve <- predict(prepro, training[,nuIndex])
+  trainingAve$classe <- training$classe
+```
+
+##Create cross validation dataset
+Now, we are ready to create our model. But first, we have to create cross validation data set
+```{r}
+  inTrain <- createDataPartition(trainingAve$classe, p = 0.7, list = FALSE)
+  training <- trainingAve[inTrain,]
+  crossValidation <- trainingAve[-inTrain,]
+```
+
+##Model creation
+Ok, we are ready to create our model using random forest method
+
+```{r}
+  set.seed(12345)
+  modFit <- train(classe ~ ., data = training, method = "rf")
+```
+
+##Prediction
+Lets predict using the training set and then check the confusion matrix of it.
+
+```{r}
+  trainpredict <- predict(modFit, training)
+  confusionMatrix(trainpredict, training$classe)
+```
+
+We attrieve 100% of accuracy but that's normal because we predict using our training model data set. Now lets do crossvalidation to check the accuracy
+
+```{r}
+  crossvalpredict <- predict(modFit, crossValidation)
+  confusionMatrix(crossvalpredict, crossValidation$classe)
+```
+
+Our model gives us 99% of accuracy which is not bad.
+Finally, lets predict usuing the test dataset.
+
+```{r}
+  testpredict <- predict(modFit, testing)
+```
+
+The test dataset does not provide actual value so there is no way we can check the accuracy of it. But with 99% from cross validation, we can assume that the prediction should be accurate.       
